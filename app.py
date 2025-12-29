@@ -1,3 +1,6 @@
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import streamlit as st
 from engine.reader import get_text_from_pdf
 from engine.detective import find_legal_details, extract_timeline
@@ -97,4 +100,5 @@ else:
     st.write("### How to use:")
     st.write("1. Upload a PDF judgment in the left sidebar.")
     st.write("2. Wait for the AI to extract parties, dates, and laws.")
+
     st.write("3. Review the summary and download the final Case Brief for your records.")
