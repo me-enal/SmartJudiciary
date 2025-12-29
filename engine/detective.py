@@ -2,7 +2,8 @@ import spacy
 import re
 
 # Load the high-accuracy transformer model
-nlp = spacy.load("en_core_web_trf")
+# Change "en_core_web_trf" to "en_core_web_sm"
+nlp = spacy.load("en_core_web_sm")
 
 def find_legal_details(text):
     """Extracts Names and Laws from the judgment text."""
@@ -38,4 +39,5 @@ def extract_timeline(text):
         if len(timeline) >= 8:
             break
             
+
     return timeline
