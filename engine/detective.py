@@ -2,35 +2,46 @@ import re
 
 def find_legal_details(text):
     """
-    Specifically tuned for Indian High Court Matrimonial Judgments.
+    Final optimized detector for Indian High Court Judgment formats.
     """
     details = {"Parties": [], "Laws": []}
     
-    # We focus on the first 3000 characters where headers usually sit
-    header_area = text[:3000]
+    # 1. ROBUST PARTY DETECTION (The 'Between/Versus' Logic)
+    # We search the first 4000 chars for the formal header
+    header = text[:4000]
 
-    # 1. PETITIONER/RESPONDENT PATTERN (The most common High Court format)
-    # Looks for: Name ... Appellant/Petitioner VERSUS Name ... Respondent
-    formal_pattern = r"(?s)(?:BETWEEN|IN THE MATTER OF:)?\s*(.*?)\s*\.\.\..*?(?:Appellant|Petitioner|Applicant).*?(?:VERSUS|VS\.?|V/S).*?(.*?)\s*\.\.\..*?Respondent"
-    formal_match = re.search(formal_pattern, header_area, re.IGNORECASE)
+    # Pattern: Captures names followed by 'Appellant/Petitioner/Applicant' 
+    # and names followed by 'Respondent', separated by 'VERSUS'
+    # The (?s) flag allows matching across multiple lines
+    formal_regex = r"(?s)(?:BETWEEN|MATTER OF|CASE OF)?\s*(.*?)\s*(?:\.\.\.|–)\s*(?:Appellant|Petitioner|Applicant|Plaintiff).*?(?:VERSUS|VS\.?|V/S).*?(.*?)\s*(?:\.\.\.|–)\s*Respondent"
+    
+    match = re.search(formal_regex, header, re.IGNORECASE)
 
-    if formal_match:
-        # Clean up the names (remove extra dots, newlines, and professional titles)
-        p1 = re.sub(r'[\d\.\n\r]+', ' ', formal_match.group(1)).strip()
-        p2 = re.sub(r'[\d\.\n\r]+', ' ', formal_match.group(2)).strip()
-        details["Parties"] = [p1[:100], p2[:100]] # Limit length to avoid noise
-
-    # 2. FALLBACK: SIMPLE VS PATTERN (Handles ALL CAPS names)
+    if match:
+        # Cleanup: Remove dots, 'Mr./Ms.', and extra spaces
+        p1 = re.sub(r'[\.\d\n\r\t]+', ' ', match.group(1)).strip()
+        p2 = re.sub(r'[\.\d\n\r\t]+', ' ', match.group(2)).strip()
+        
+        # Final polish to remove common titles
+        titles = ["MR ", "MS ", "MRS ", "SHRI ", "SMT ", "MD "]
+        for t in titles:
+            p1 = p1.upper().replace(t, "")
+            p2 = p2.upper().replace(t, "")
+            
+        details["Parties"] = [p1.strip(), p2.strip()]
+    
+    # Fallback: Simple 'A VS B' on one line
     if not details["Parties"]:
-        vs_pattern = r"([A-Z][A-Z\s]{3,})\s+(?:VERSUS|V/S|VS\.?)\s+([A-Z][A-Z\s]{3,})"
-        vs_match = re.search(vs_pattern, header_area)
-        if vs_match:
-            details["Parties"] = [vs_match.group(1).strip(), vs_match.group(2).strip()]
+        simple_vs = r"([A-Z][A-Z\s]+)\s+(?:VERSUS|VS\.?|V/S)\s+([A-Z][A-Z\s]+)"
+        simple_match = re.search(simple_vs, header)
+        if simple_match:
+            details["Parties"] = [simple_match.group(1).strip(), simple_match.group(2).strip()]
 
-    # 3. LAW DETECTION
+    # 2. LAW DETECTION (Existing logic is working, adding minor improvements)
     law_keywords = [
         "Section 125", "CrPC", "Maintenance", "Custody", 
-        "Hindu Marriage Act", "Domestic Violence Act", "Section 24"
+        "Hindu Marriage Act", "Domestic Violence Act", "Section 24",
+        "Hindu Succession Act", "Guardians and Wards Act"
     ]
     for law in law_keywords:
         if re.search(r'\b' + re.escape(law) + r'\b', text, re.IGNORECASE):
@@ -40,17 +51,24 @@ def find_legal_details(text):
 
 def extract_timeline(text):
     """
-    Captures formal Indian date formats like '14th October, 2023' or '14.10.2023'.
+    Advanced date parser for Indian Court date formats.
     """
-    # Pattern 1: Numerical dates (DD.MM.YYYY)
-    # Pattern 2: Textual dates (14th October 2023)
-    date_regex = r'(\d{1,2}(?:st|nd|rd|th)?[\s\.\-/]+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s,]*\d{2,4}|\d{1,2}[.\-/]\d{1,2}[.\-/]\d{2,4})'
+    # Pattern 1: Numerical (14.10.2023)
+    # Pattern 2: Alpha (14th October 2023)
+    # Pattern 3: Alpha-Reverse (October 14, 2023)
+    date_regex = r'(\d{1,2}(?:st|nd|rd|th)?[\s\.\-/]*(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s,]*\d{2,4}|\d{1,2}[.\-/]\d{1,2}[.\-/]\d{2,4}|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2}[\s,]+\d{4})'
     
     matches = re.findall(date_regex, text, re.IGNORECASE)
     
-    # Cleaning and sorting unique dates
-    unique_dates = list(dict.fromkeys([m.strip() for m in matches]))
-    return [f"Scheduled/Occurred: {d}" for d in unique_dates[:10]]
+    # Clean and remove duplicates
+    unique_dates = []
+    for m in matches:
+        clean_date = m.strip().replace('\n', ' ')
+        if clean_date not in unique_dates:
+            unique_dates.append(clean_date)
+            
+    return [f"Key Date: {d}" for d in unique_dates[:8]]
+
 
 
 
