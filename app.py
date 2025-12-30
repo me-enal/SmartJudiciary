@@ -1,32 +1,36 @@
-import sys
 import os
+import sys
 import streamlit as st
 
-# 1. THE FIX: Explicitly add the current directory to the Python Path
-# This must happen BEFORE the 'from engine...' lines
+# --- STEP 1: FIX PATHS IMMEDIATELY ---
+# This must be at the very top to prevent ImportError
 current_dir = os.path.dirname(os.path.abspath(__file__))
 if current_dir not in sys.path:
     sys.path.insert(0, current_dir)
 
-# 2. Now the imports will work
-from engine.reader import get_text_from_pdf
-from engine.detective import find_legal_details, extract_timeline
-from engine.summarizer import make_summary
-from engine.database import PAST_CASES
-import sys
-import os
-import streamlit as st
+# --- STEP 2: INTERNAL IMPORTS ---
+try:
+    from engine.reader import get_text_from_pdf
+    from engine.detective import find_legal_details, extract_timeline
+    from engine.summarizer import make_summary
+    from engine.database import PAST_CASES
+except ImportError as e:
+    st.error(f"Module Loading Error: {e}")
+    st.info("Ensure your folder is named 'engine' (lowercase) and contains __init__.py")
+    st.stop()
+
+# --- STEP 3: EXTERNAL LIBRARIES ---
 import datetime
 import spacy
 import gc
 from sentence_transformers import util
 
-# --- 1. PAGE CONFIGURATION ---
-st.set_page_config(
-    page_title="Judiciary AI: Family Law Assistant",
-    page_icon="⚖️",
-    layout="wide"
+# --- STEP 4: APP LOGIC ---
+st.set_page_config(page_title="Smart Judiciary AI", layout="wide")
 )
+
+
+# ... rest of your UI code (File uploader, etc) ...
 
 # --- 2. PAST CASES DATABASE (Embedded so it never fails) ---
 # You can add more cases to this dictionary later
@@ -190,6 +194,7 @@ with st.expander("Contribute this case to AI Training?"):
 
 # Memory Cleanup
 gc.collect()
+
 
 
 
