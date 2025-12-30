@@ -1,23 +1,21 @@
-import os
 import sys
+import os
 import streamlit as st
 
-# --- STEP 1: FIX PATHS IMMEDIATELY ---
-# This must be at the very top to prevent ImportError
-current_dir = os.path.dirname(os.path.abspath(__file__))
-if current_dir not in sys.path:
-    sys.path.insert(0, current_dir)
+# FORCE PATH SEARCH
+# This tells Streamlit to look in the exact folder where app.py lives
+sys.path.append(os.getcwd())
 
-# --- STEP 2: INTERNAL IMPORTS ---
 try:
     from engine.reader import get_text_from_pdf
     from engine.detective import find_legal_details, extract_timeline
     from engine.summarizer import make_summary
     from engine.database import PAST_CASES
-except ImportError as e:
-    st.error(f"Module Loading Error: {e}")
-    st.info("Ensure your folder is named 'engine' (lowercase) and contains __init__.py")
+except Exception as e:
+    st.error(f"Import failed. Please check folder names. Error: {e}")
     st.stop()
+
+# ... rest of your imports (spacy, etc)
 
 # --- STEP 3: EXTERNAL LIBRARIES ---
 import datetime
@@ -194,6 +192,7 @@ with st.expander("Contribute this case to AI Training?"):
 
 # Memory Cleanup
 gc.collect()
+
 
 
 
