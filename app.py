@@ -1,58 +1,52 @@
 import sys
 import os
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import streamlit as st
-from engine.reader import get_text_from_pdf
-from engine.detective import find_legal_details, extract_timeline
-from engine.summarizer import make_summary
 import datetime
 import spacy
 import pdfplumber
-from engine.database import PAST_CASES
 import gc
-# --- TOP LEVEL (No Spaces) ---
-@st.cache_resource
-def load_nlp_model():
-    # --- INSIDE (4 Spaces/1 Tab) ---
-    return spacy.load("en_core_web_sm")
+from sentence_transformers import util
 
-# --- BACK TO TOP LEVEL (No Spaces) ---
-@st.cache_resource
-def load_bert_model():
-    # --- INSIDE (4 Spaces/1 Tab) ---
-    from sentence_transformers import SentenceTransformer
-    return SentenceTransformer('all-MiniLM-L6-v2')
+# Custom Engine Imports
+from engine.reader import get_text_from_pdf
+from engine.detective import find_legal_details, extract_timeline
+from engine.summarizer import make_summary
+from engine.database import PAST_CASES 
 
-# --- TOP LEVEL (No Spaces) ---
-research_ai = load_bert_model()
-nlp = load_nlp_model()
-# 2. Call the function to get your 'nlp' object
-nlp = load_nlp_model()
-
-# --- Rest of your app code starts here ---
-st.title("Smart Judiciary AI")
-
-# 1. Page Configuration
+# 1. Page Configuration (This MUST be the first Streamlit command)
 st.set_page_config(
     page_title="Judiciary AI: Family Law Assistant",
     page_icon="⚖️",
     layout="wide"
 )
 
-# 2. Sidebar - Branding and Upload
+# --- AI MODEL LOADING ---
+@st.cache_resource
+def load_nlp_model():
+    return spacy.load("en_core_web_sm")
+
+@st.cache_resource
+def load_bert_model():
+    from sentence_transformers import SentenceTransformer
+    return SentenceTransformer('all-MiniLM-L6-v2')
+
+research_ai = load_bert_model()
+nlp = load_nlp_model()
+
+# --- Sidebar ---
 with st.sidebar:
     st.title("⚖️ SmartJudiciary")
     st.subheader("Professional Case Analyzer")
     uploaded_file = st.file_uploader("Upload Judgment PDF", type="pdf")
     st.divider()
-    st.info("🔒 Privacy-First: All processing is local. No data leaves your machine.")
+    st.info("🔒 Privacy-First: All processing is local.")
 
-# 3. Main Header
+# --- Main Header ---
 st.title("Judiciary AI System for Family Law")
 st.markdown("---")
 
 if uploaded_file:
-    # Status bar for the user to track AI steps
+    # --- PROCESSING ---
     with st.status("🚀 AI Engine Processing...", expanded=True) as status:
         st.write("📖 Reading PDF content...")
         text = get_text_from_pdf(uploaded_file)
@@ -67,28 +61,21 @@ if uploaded_file:
         summary = make_summary(text)
         
         status.update(label="Analysis Complete!", state="complete", expanded=False)
-        st.markdown("---")
-st.subheader("🔍 Finding Precedents (BERT Similarity)")
 
-# The AI turns your uploaded PDF into math
-current_embedding = research_ai.encode(text[:2000], convert_to_tensor=True)
+    # --- SIMILARITY SEARCH (Now correctly indented inside the 'if' block) ---
+    st.subheader("🔍 Finding Precedents (BERT Similarity)")
+    current_embedding = research_ai.encode(text[:2000], convert_to_tensor=True)
 
-with st.expander("View Similar Past Cases", expanded=True):
-    # Instead of a local dictionary, we loop through PAST_CASES from database.py
-    for title, past_text in PAST_CASES.items():
-        
-        # AI turns the past case into math
-        past_embedding = research_ai.encode(past_text[:2000], convert_to_tensor=True)
-        
-        # Compare the two
-        score = util.cos_sim(current_embedding, past_embedding).item()
-        
-        # Only show it if it's relevant (above 40%)
-        if score > 0.40:
-            st.write(f"✅ **{title}** - Similarity: {int(score*100)}%")
-            st.caption(f"Legal Context: {past_text[:120]}...")
+    with st.expander("View Similar Past Cases", expanded=True):
+        for title, past_text in PAST_CASES.items():
+            past_embedding = research_ai.encode(past_text[:2000], convert_to_tensor=True)
+            score = util.cos_sim(current_embedding, past_embedding).item()
+            
+            if score > 0.40:
+                st.write(f"✅ **{title}** - Similarity: {int(score*100)}%")
+                st.caption(f"Legal Context: {past_text[:120]}...")
 
-    # 4. Results Section: Displaying in 2 Columns
+    # --- RESULTS SECTION ---
     col1, col2 = st.columns([1, 1])
 
     with col1:
@@ -107,49 +94,35 @@ with st.expander("View Similar Past Cases", expanded=True):
         st.subheader("📝 Actionable Summary")
         st.info(summary)
         
-        # 5. Export Feature for Lawyers
         st.divider()
         st.subheader("📥 Export Case Brief")
-        
-        # Prepare the text for the download file
         report_timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         full_report = f"""
 ⚖️ JUDICIARY AI CASE BRIEF
 Generated on: {report_timestamp}
 ---------------------------------------
 FILE NAME: {uploaded_file.name}
-
 PARTIES: {', '.join(details['Parties'])}
-LEGAL PROVISIONS: {', '.join(details['Laws'])}
-
-SUMMARY:
-{summary}
-
-CHRONOLOGY:
-{chr(10).join(timeline_events)}
+SUMMARY: {summary}
 ---------------------------------------
-End of Brief.
-        """
-        
+"""
         st.download_button(
             label="Download Case Brief (.txt)",
             data=full_report,
             file_name=f"Case_Brief_{uploaded_file.name.replace('.pdf', '')}.txt",
-            mime="text/plain",
-            help="Download the summary and timeline for court use."
+            mime="text/plain"
         )
 
 else:
-    # Landing Page view
+    # --- LANDING PAGE ---
     st.image("https://via.placeholder.com/1000x300.png?text=Upload+a+Legal+PDF+to+Start+Analysis", use_column_width=True)
     st.write("### How to use:")
     st.write("1. Upload a PDF judgment in the left sidebar.")
     st.write("2. Wait for the AI to extract parties, dates, and laws.")
 
-    st.write("3. Review the summary and download the final Case Brief for your records.")
-    import gc
-gc.collect() # <--- This manually clears out unused memory
-# ... previous code where you showed summary and chronology ...
+# Final memory cleanup at the bottom
+gc.collect()
+
 
 
 
