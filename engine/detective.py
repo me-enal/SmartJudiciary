@@ -1,38 +1,46 @@
 import re
 
-def extract_timeline(text):
-    # 1. Improved Date Pattern
-    date_pattern = r'(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})|((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s.-]?\d{1,2}(?:st|nd|rd|th)?[\s,.-]?\d{4})|(\d{1,2}(?:st|nd|rd|th)?[\s.-]?(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s,.-]?\d{4})'
+def find_legal_details(text):
+    """
+    Extracts Parties and Laws from the text.
+    """
+    details = {
+        "Parties": [],
+        "Laws": []
+    }
     
-    # 2. Find all dates in the text
-    matches = re.findall(date_pattern, text, re.IGNORECASE)
+    # 1. Simple Regex for Parties (Looking for 'VS' or 'VERSUS')
+    party_pattern = r"([A-Z][a-z]+(?:\s[A-Z][a-z]+)*)\s+(?:vs\.?|versus)\s+([A-Z][a-z]+(?:\s[A-Z][a-z]+)*)"
+    party_match = re.search(party_pattern, text)
+    if party_match:
+        details["Parties"] = [party_match.group(1), party_match.group(2)]
+
+    # 2. Simple Regex for Common Indian Laws
+    law_keywords = ["Hindu Marriage Act", "Section 125", "CrPC", "IPC", "Domestic Violence Act", "Maintenance", "Custody"]
+    for law in law_keywords:
+        if law.lower() in text.lower():
+            details["Laws"].append(law)
+            
+    return details
+
+def extract_timeline(text):
+    """
+    Extracts dates and surrounding context.
+    """
+    # Pattern for dates like 12.05.2023 or 12/05/2023
+    date_pattern = r'(\d{1,2}[.\-/]\d{1,2}[.\-/]\d{2,4})'
+    matches = re.findall(date_pattern, text)
     
     timeline = []
-    seen_sentences = set() # To avoid duplicate entries
-
-    for match in matches:
-        # Clean up the regex tuple into a single string
-        date_str = "".join(match).strip()
-        
-        # 3. Find the sentence containing this date
-        # This looks for the text between periods (.) surrounding the date
-        sentence_match = re.search(r'([^.!?]*' + re.escape(date_str) + r'[^.!?]*[.!?])', text)
-        
-        if sentence_match:
-            sentence = sentence_match.group(0).strip()
-            # Clean up newlines and extra spaces inside the sentence
-            clean_sentence = " ".join(sentence.split())
+    seen = set()
+    for m in matches:
+        if m not in seen:
+            timeline.append(f"Date found: {m}")
+            seen.add(m)
+        if len(timeline) > 5: break
             
-            if clean_sentence not in seen_sentences and len(clean_sentence) > 10:
-                # 4. Format the output with an emoji
-                timeline.append(f"📅 **{date_str}**: {clean_sentence}")
-                seen_sentences.add(clean_sentence)
-        
-        # 5. Limit to 8-10 events to keep the UI clean
-        if len(timeline) >= 10:
-            break
-                
-    return timeline 
+    return timeline
+
 
 
 
