@@ -7,20 +7,20 @@ import pdfplumber
 import gc
 from sentence_transformers import util
 
-# Custom Engine Imports
-from engine.reader import get_text_from_pdf
-from engine.detective import find_legal_details, extract_timeline
-from engine.summarizer import make_summary
-from engine.database import PAST_CASES 
-
-# 1. Page Configuration (This MUST be the first Streamlit command)
+# 1. Page Configuration (MUST be the first Streamlit command)
 st.set_page_config(
     page_title="Judiciary AI: Family Law Assistant",
     page_icon="⚖️",
     layout="wide"
 )
 
-# --- AI MODEL LOADING ---
+# Custom Engine Imports
+from engine.reader import get_text_from_pdf
+from engine.detective import find_legal_details, extract_timeline
+from engine.summarizer import make_summary
+from engine.database import PAST_CASES 
+
+# --- AI MODEL LOADING (Zero spaces at the start of @ lines) ---
 @st.cache_resource
 def load_nlp_model():
     return spacy.load("en_core_web_sm")
@@ -30,39 +30,39 @@ def load_bert_model():
     from sentence_transformers import SentenceTransformer
     return SentenceTransformer('all-MiniLM-L6-v2')
 
+# Initialize the brains
 research_ai = load_bert_model()
 nlp = load_nlp_model()
 
-# --- Sidebar ---
+# --- UI START ---
+st.title("Smart Judiciary AI")
+
 with st.sidebar:
     st.title("⚖️ SmartJudiciary")
     st.subheader("Professional Case Analyzer")
     uploaded_file = st.file_uploader("Upload Judgment PDF", type="pdf")
     st.divider()
-    st.info("🔒 Privacy-First: All processing is local.")
+    st.info("🔒 Privacy-First Processing")
 
-# --- Main Header ---
-st.title("Judiciary AI System for Family Law")
 st.markdown("---")
 
 if uploaded_file:
-    # --- PROCESSING ---
     with st.status("🚀 AI Engine Processing...", expanded=True) as status:
         st.write("📖 Reading PDF content...")
         text = get_text_from_pdf(uploaded_file)
         
-        st.write("🕵️ Detecting Parties and Legal Provisions...")
+        st.write("🕵️ Detecting Parties...")
         details = find_legal_details(text)
         
-        st.write("⏳ Reconstructing Case Timeline...")
+        st.write("⏳ Reconstructing Timeline...")
         timeline_events = extract_timeline(text)
         
-        st.write("📝 Synthesizing Actionable Summary...")
+        st.write("📝 Synthesizing Summary...")
         summary = make_summary(text)
         
         status.update(label="Analysis Complete!", state="complete", expanded=False)
 
-    # --- SIMILARITY SEARCH (Now correctly indented inside the 'if' block) ---
+    # --- SIMILARITY SEARCH ---
     st.subheader("🔍 Finding Precedents (BERT Similarity)")
     current_embedding = research_ai.encode(text[:2000], convert_to_tensor=True)
 
@@ -75,7 +75,7 @@ if uploaded_file:
                 st.write(f"✅ **{title}** - Similarity: {int(score*100)}%")
                 st.caption(f"Legal Context: {past_text[:120]}...")
 
-    # --- RESULTS SECTION ---
+    # --- RESULTS DISPLAY ---
     col1, col2 = st.columns([1, 1])
 
     with col1:
@@ -87,8 +87,6 @@ if uploaded_file:
         if timeline_events:
             for event in timeline_events:
                 st.markdown(event)
-        else:
-            st.info("No specific dates found in text.")
 
     with col2:
         st.subheader("📝 Actionable Summary")
@@ -96,32 +94,19 @@ if uploaded_file:
         
         st.divider()
         st.subheader("📥 Export Case Brief")
-        report_timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        full_report = f"""
-⚖️ JUDICIARY AI CASE BRIEF
-Generated on: {report_timestamp}
----------------------------------------
-FILE NAME: {uploaded_file.name}
-PARTIES: {', '.join(details['Parties'])}
-SUMMARY: {summary}
----------------------------------------
-"""
         st.download_button(
             label="Download Case Brief (.txt)",
-            data=full_report,
-            file_name=f"Case_Brief_{uploaded_file.name.replace('.pdf', '')}.txt",
+            data=f"SUMMARY:\n{summary}",
+            file_name="Case_Brief.txt",
             mime="text/plain"
         )
 
 else:
-    # --- LANDING PAGE ---
-    st.image("https://via.placeholder.com/1000x300.png?text=Upload+a+Legal+PDF+to+Start+Analysis", use_column_width=True)
-    st.write("### How to use:")
-    st.write("1. Upload a PDF judgment in the left sidebar.")
-    st.write("2. Wait for the AI to extract parties, dates, and laws.")
+    st.info("Please upload a PDF file in the sidebar to begin.")
 
-# Final memory cleanup at the bottom
+# Final memory cleanup
 gc.collect()
+
 
 
 
