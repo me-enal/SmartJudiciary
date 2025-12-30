@@ -32,7 +32,8 @@ def extract_timeline(text):
         if len(timeline) >= 10:
             break
                 
-    return timeline
+    return timeline 
+
 
 
 
