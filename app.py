@@ -1,6 +1,21 @@
 import sys
 import os
 import streamlit as st
+
+# 1. THE FIX: Explicitly add the current directory to the Python Path
+# This must happen BEFORE the 'from engine...' lines
+current_dir = os.path.dirname(os.path.abspath(__file__))
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
+
+# 2. Now the imports will work
+from engine.reader import get_text_from_pdf
+from engine.detective import find_legal_details, extract_timeline
+from engine.summarizer import make_summary
+from engine.database import PAST_CASES
+import sys
+import os
+import streamlit as st
 import datetime
 import spacy
 import gc
@@ -175,6 +190,7 @@ with st.expander("Contribute this case to AI Training?"):
 
 # Memory Cleanup
 gc.collect()
+
 
 
 
