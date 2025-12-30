@@ -1,37 +1,30 @@
-import sys
 import os
+import sys
 import streamlit as st
-
-# FORCE PATH SEARCH
-# This tells Streamlit to look in the exact folder where app.py lives
-sys.path.append(os.getcwd())
-
-try:
-    from engine.reader import get_text_from_pdf
-    from engine.detective import find_legal_details, extract_timeline
-    from engine.summarizer import make_summary
-    from engine.database import PAST_CASES
-except Exception as e:
-    st.error(f"Import failed. Please check folder names. Error: {e}")
-    st.stop()
-
-# ... rest of your imports (spacy, etc)
-
-# --- STEP 3: EXTERNAL LIBRARIES ---
 import datetime
 import spacy
 import gc
 from sentence_transformers import util
 
-# --- STEP 4: APP LOGIC ---
-st.set_page_config(page_title="Smart Judiciary AI", layout="wide")
+# 1. Path Fix (Must be at the very top)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+# 2. Internal Imports
+try:
+    from engine.reader import get_text_from_pdf
+    from engine.detective import find_legal_details, extract_timeline
+    from engine.summarizer import make_summary
+except ImportError:
+    PAST_CASES = {} # Fallback if import fails
+
+# 3. Page Configuration (This is where your error likely is)
+st.set_page_config(
+    page_title="Judiciary AI",
+    page_icon="⚖️",
+    layout="wide"
+)
 
 
-
-# ... rest of your UI code (File uploader, etc) ...
-
-# --- 2. PAST CASES DATABASE (Embedded so it never fails) ---
-# You can add more cases to this dictionary later
 PAST_CASES = {
     "Suresh v. State of Haryana (2018)": "A landmark case regarding child custody where the welfare of the minor was paramount. The court held that the mother's financial status is not a bar to custody.",
     "Ramesh v. Sunita (2020)": "A case involving Section 125 of CrPC where maintenance was granted to the wife despite her being highly educated but unemployed.",
@@ -192,6 +185,7 @@ with st.expander("Contribute this case to AI Training?"):
 
 # Memory Cleanup
 gc.collect()
+
 
 
 
