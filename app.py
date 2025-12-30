@@ -10,22 +10,22 @@ import spacy
 import pdfplumber
 from engine.database import PAST_CASES
 import gc
+# --- TOP LEVEL (No Spaces) ---
 @st.cache_resource
 def load_nlp_model():
-    # We use 'sm' because it's the lightest permanent solution
+    # --- INSIDE (4 Spaces/1 Tab) ---
     return spacy.load("en_core_web_sm")
 
+# --- BACK TO TOP LEVEL (No Spaces) ---
 @st.cache_resource
 def load_bert_model():
-    from sentence_transformers import SentenceTransformer  # <--- MUST BE INDENTED
-    # This model is based on BERT but very lightweight
-    return SentenceTransformer('all-MiniLM-L6-v2')          # <--- MUST BE INDENTED
+    # --- INSIDE (4 Spaces/1 Tab) ---
+    from sentence_transformers import SentenceTransformer
+    return SentenceTransformer('all-MiniLM-L6-v2')
 
-# This line should be back at the start of the line (no indentation)
+# --- TOP LEVEL (No Spaces) ---
 research_ai = load_bert_model()
-
-research_ai = load_bert_model()
-
+nlp = load_nlp_model()
 # 2. Call the function to get your 'nlp' object
 nlp = load_nlp_model()
 
@@ -150,6 +150,7 @@ else:
     import gc
 gc.collect() # <--- This manually clears out unused memory
 # ... previous code where you showed summary and chronology ...
+
 
 
 
