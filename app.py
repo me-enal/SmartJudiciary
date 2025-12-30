@@ -149,8 +149,33 @@ else:
     st.write("2. Wait for the AI to extract parties, dates, and laws.")
     st.write("3. Review the summary and precedents below.")
 
+# --- 5. ENHANCED LEARNING SECTION (Feedback Loop) ---
+st.divider()
+st.subheader("🤖 Improve AI Decision Making")
+
+# Initialize a session-based training database if it doesn't exist
+if 'training_data' not in st.session_state:
+    st.session_state['training_data'] = PAST_CASES.copy()
+
+with st.expander("Contribute this case to AI Training?"):
+    st.write("By contributing, you help the model recognize similar legal patterns in the future.")
+    case_name = st.text_input("Enter a name for this case (e.g., Party A vs Party B):")
+    
+    if st.button("Authorize & Train Model"):
+        if case_name:
+            # Add the new text to the session database
+            st.session_state['training_data'][case_name] = text[:5000]
+            st.success(f"Successfully added '{case_name}' to the local training set!")
+            st.balloons()
+            # Update the global PAST_CASES for the rest of this session
+            PAST_CASES.update(st.session_state['training_data'])
+        else:
+            st.warning("Please provide a case name first.")
+
+
 # Memory Cleanup
 gc.collect()
+
 
 
 
