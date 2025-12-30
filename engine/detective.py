@@ -3,60 +3,59 @@ import re
 def find_legal_details(text):
     details = {"Parties": [], "Laws": []}
     
-    # 1. PRE-CLEANING (The Secret Sauce)
-    # We take the first 3000 chars and remove all long sequences of dots and extra newlines
-    # This turns "MEENAL ..... VS ..... RAJESH" into "MEENAL VS RAJESH"
-    clean_head = re.sub(r'\.{2,}', ' ', text[:3000]) # Remove 2+ dots
-    clean_head = re.sub(r'\s+', ' ', clean_head)    # Remove extra spaces/newlines
+    # 1. SEGMENT THE HEADER
+    # Most parties are in the first 3000 characters
+    header = text[:3000]
 
-    # 2. THE "FIRST CODE" LOGIC (Strict & Simple)
-    # This looks for any words separated by VS, VERSUS, or V/S
-    party_pattern = r"([A-Z][A-Z\s]{2,})\s+(?:VERSUS|VS\.?|V/S)\s+([A-Z][A-Z\s]{2,})"
+    # 2. FORCE-CLEAN THE TEXT
+    # This removes all dots, dashes, and extra line breaks that hide the names
+    clean_text = re.sub(r'[\.\-\_]+', ' ', header) # Remove dots and dashes
+    clean_text = ' '.join(clean_text.split())     # Standardize all spaces
+
+    # 3. ROBUST PARTY SEARCH
+    # Looking for Name VS Name or Petitioner vs Respondent
+    # Pattern 1: Formal [Name] VERSUS [Name]
+    vs_pattern = r"([A-Z][A-Z\s]{3,})\s+(?:VERSUS|V/S|VS\.?)\s+([A-Z][A-Z\s]{3,})"
     
-    match = re.search(party_pattern, clean_head, re.IGNORECASE)
+    # Pattern 2: [Name] ... Petitioner ... [Name] ... Respondent
+    formal_pattern = r"(.*?)\s*Petitioner\s*.*?\s*(.*?)\s*Respondent"
 
-    if match:
-        p1 = match.group(1).strip()
-        p2 = match.group(2).strip()
-        
-        # Remove common court noise from names
-        for noise in ["PETITIONER", "APPELLANT", "RESPONDENT", "PLAINTIFF", "AND ORS", "AND OTHERS"]:
-            p1 = re.sub(rf'\b{noise}\b', '', p1, flags=re.IGNORECASE).strip()
-            p2 = re.sub(rf'\b{noise}\b', '', p2, flags=re.IGNORECASE).strip()
-            
-        details["Parties"] = [p1, p2]
+    match_vs = re.search(vs_pattern, clean_text, re.IGNORECASE)
+    match_formal = re.search(formal_pattern, clean_text, re.IGNORECASE)
+
+    if match_vs:
+        details["Parties"] = [match_vs.group(1).strip(), match_vs.group(2).strip()]
+    elif match_formal:
+        details["Parties"] = [match_formal.group(1).strip(), match_formal.group(2).strip()]
     else:
-        # Emergency Fallback: If no VS is found, try to find "Petitioner"
-        pet_match = re.search(r"([A-Z][A-Z\s]{2,})\s+.*?PETITIONER", clean_head, re.IGNORECASE)
-        res_match = re.search(r"([A-Z][A-Z\s]{2,})\s+.*?RESPONDENT", clean_head, re.IGNORECASE)
-        if pet_match and res_match:
-            details["Parties"] = [pet_match.group(1).strip(), res_match.group(1).strip()]
-        else:
-            details["Parties"] = ["Not detected", "Not detected"]
+        details["Parties"] = ["Not detected", "Not detected"]
 
-    # 3. LAW DETECTION (Keep what is working)
-    law_keywords = ["Section 125", "CrPC", "Maintenance", "Custody", "Hindu Marriage Act", "Domestic Violence"]
+    # 4. LAW DETECTION (This part is working, so we keep it simple)
+    law_keywords = ["Section 125", "CrPC", "Maintenance", "Custody", "Hindu Marriage Act"]
     for law in law_keywords:
-        if law.lower() in text.lower():
+        if re.search(r'\b' + re.escape(law) + r'\b', text, re.IGNORECASE):
             details["Laws"].append(law)
             
     return details
 
 def extract_timeline(text):
-    # This pattern catches 14.10.2023, 14/10/2023, and October 14, 2023
-    date_regex = r'(\d{1,2}[.\-/]\d{1,2}[.\-/]\d{2,4}|(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}[\s,]+\d{4})'
+    # This regex catches: 14.10.2023, 14-10-23, and October 14, 2023
+    date_regex = r'(\d{1,2}[.\-/]\d{1,2}[.\-/]\d{2,4}|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2}[\s,]+\d{4})'
     
     matches = re.findall(date_regex, text, re.IGNORECASE)
     
+    # Get unique dates and clean them
     unique_dates = []
     for m in matches:
-        if m not in unique_dates:
-            unique_dates.append(m)
+        clean_d = m.strip().replace('\n', '')
+        if clean_d not in unique_dates:
+            unique_dates.append(clean_d)
             
     if not unique_dates:
         return ["No specific dates found"]
     
     return [f"Key Date: {d}" for d in unique_dates[:8]]
+
 
 
 
