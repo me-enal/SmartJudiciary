@@ -1,25 +1,33 @@
 import sys
 import os
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import streamlit as st
-from engine.reader import get_text_from_pdf
-from engine.detective import find_legal_details, extract_timeline
-from engine.summarizer import make_summary
 import datetime
 import spacy
-import pdfplumber
-from engine.database import PAST_CASES
-from sentence_transformers import util
 import gc
+from sentence_transformers import util
 
-# 1. Page Configuration (This MUST be the first Streamlit command)
+# --- 1. PAGE CONFIGURATION ---
 st.set_page_config(
     page_title="Judiciary AI: Family Law Assistant",
     page_icon="⚖️",
     layout="wide"
 )
 
-# --- AI Models ---
+# --- 2. PAST CASES DATABASE (Embedded so it never fails) ---
+# You can add more cases to this dictionary later
+PAST_CASES = {
+    "Suresh v. State of Haryana (2018)": "A landmark case regarding child custody where the welfare of the minor was paramount. The court held that the mother's financial status is not a bar to custody.",
+    "Ramesh v. Sunita (2020)": "A case involving Section 125 of CrPC where maintenance was granted to the wife despite her being highly educated but unemployed.",
+    "Anjali v. Alok (2021)": "Judgment regarding the division of ancestral property in family disputes under the Hindu Succession Act."
+}
+
+# --- 3. CUSTOM ENGINE IMPORTS ---
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from engine.reader import get_text_from_pdf
+from engine.detective import find_legal_details, extract_timeline
+from engine.summarizer import make_summary
+
+# --- 4. AI MODELS (Cached) ---
 @st.cache_resource
 def load_nlp_model():
     return spacy.load("en_core_web_sm")
@@ -32,23 +40,20 @@ def load_bert_model():
 research_ai = load_bert_model()
 nlp = load_nlp_model()
 
-# --- Rest of your app code starts here ---
-st.title("Smart Judiciary AI")
-
-# 2. Sidebar - Branding and Upload
+# --- 5. SIDEBAR ---
 with st.sidebar:
     st.title("⚖️ SmartJudiciary")
     st.subheader("Professional Case Analyzer")
     uploaded_file = st.file_uploader("Upload Judgment PDF", type="pdf")
     st.divider()
-    st.info("🔒 Privacy-First: All processing is local. No data leaves your machine.")
+    st.info("🔒 Privacy-First: All processing is local.")
 
-# 3. Main Header
+# --- 6. MAIN UI ---
 st.title("Judiciary AI System for Family Law")
 st.markdown("---")
 
 if uploaded_file:
-    # Status bar for the user to track AI steps
+    # Processing Status
     with st.status("🚀 AI Engine Processing...", expanded=True) as status:
         st.write("📖 Reading PDF content...")
         text = get_text_from_pdf(uploaded_file)
@@ -63,31 +68,31 @@ if uploaded_file:
         summary = make_summary(text)
         
         status.update(label="Analysis Complete!", state="complete", expanded=False)
-    
+
     st.markdown("---")
     
-    # --- ALL CODE BELOW IS NOW INDENTED INSIDE THE 'if uploaded_file' BLOCK ---
+    # 7. PRECEDENT SEARCH (BERT)
     st.subheader("🔍 Finding Precedents (BERT Similarity)")
-
-    # The AI turns your uploaded PDF into math
+    
+    # Analyze the first 2000 characters of the uploaded document
     current_embedding = research_ai.encode(text[:2000], convert_to_tensor=True)
 
     with st.expander("View Similar Past Cases", expanded=True):
-        # Instead of a local dictionary, we loop through PAST_CASES from database.py
+        found_any = False
         for title, past_text in PAST_CASES.items():
-            
-            # AI turns the past case into math
             past_embedding = research_ai.encode(past_text[:2000], convert_to_tensor=True)
-            
-            # Compare the two
             score = util.cos_sim(current_embedding, past_embedding).item()
             
-            # Only show it if it's relevant (above 40%)
+            # Show cases with more than 40% similarity
             if score > 0.40:
                 st.write(f"✅ **{title}** - Similarity: {int(score*100)}%")
-                st.caption(f"Legal Context: {past_text[:120]}...")
+                st.caption(f"Legal Context: {past_text[:150]}...")
+                found_any = True
+        
+        if not found_any:
+            st.info("No highly similar precedents found in the current database.")
 
-    # 4. Results Section: Displaying in 2 Columns
+    # 8. RESULTS DISPLAY (2 Columns)
     col1, col2 = st.columns([1, 1])
 
     with col1:
@@ -98,7 +103,7 @@ if uploaded_file:
         st.subheader("⏳ Case Chronology")
         if timeline_events:
             for event in timeline_events:
-                st.markdown(event)
+                st.markdown(f"• {event}")
         else:
             st.info("No specific dates found in text.")
 
@@ -106,11 +111,10 @@ if uploaded_file:
         st.subheader("📝 Actionable Summary")
         st.info(summary)
         
-        # 5. Export Feature for Lawyers
+        # 9. EXPORT FEATURE
         st.divider()
         st.subheader("📥 Export Case Brief")
         
-        # Prepare the text for the download file
         report_timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         full_report = f"""
 ⚖️ JUDICIARY AI CASE BRIEF
@@ -134,21 +138,20 @@ End of Brief.
             label="Download Case Brief (.txt)",
             data=full_report,
             file_name=f"Case_Brief_{uploaded_file.name.replace('.pdf', '')}.txt",
-            mime="text/plain",
-            help="Download the summary and timeline for court use."
+            mime="text/plain"
         )
 
 else:
-    # Landing Page view
+    # Landing Page
     st.image("https://via.placeholder.com/1000x300.png?text=Upload+a+Legal+PDF+to+Start+Analysis", use_column_width=True)
     st.write("### How to use:")
     st.write("1. Upload a PDF judgment in the left sidebar.")
     st.write("2. Wait for the AI to extract parties, dates, and laws.")
-    st.write("3. Review the summary and download the final Case Brief for your records.")
+    st.write("3. Review the summary and precedents below.")
 
-# Final memory cleanup at the very bottom
-import gc
+# Memory Cleanup
 gc.collect()
+
 
 
 
