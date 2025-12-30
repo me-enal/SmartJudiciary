@@ -124,6 +124,38 @@ else:
     st.write("3. Review the summary and download the final Case Brief for your records.")
     import gc
 gc.collect() # <--- This manually clears out unused memory
+# ... previous code where you showed summary and chronology ...
+
+    st.markdown("---") # Add a visual divider
+    
+    # PASTE THE CODE HERE
+    st.subheader("🔍 Finding Precedents (BERT Similarity)")
+    
+    # 1. Your library of past cases
+    past_cases = {
+        "Sharma vs. Sharma (2019)": "A case about child maintenance and custody...",
+        "Verma vs. State (2021)": "A judgment regarding ancestral property rights..."
+    }
+
+    # 2. Vectorize the current uploaded text
+    # We use text[:2000] to save memory!
+    current_embedding = research_ai.encode(text[:2000], convert_to_tensor=True)
+
+    # Create a nice container for matches
+    with st.expander("View Similar Past Cases", expanded=True):
+        for title, past_text in past_cases.items():
+            past_embedding = research_ai.encode(past_text[:2000], convert_to_tensor=True)
+            
+            from sentence_transformers import util
+            score = util.cos_sim(current_embedding, past_embedding).item()
+            
+            if score > 0.40:
+                st.write(f"✅ **{title}** - Similarity: {int(score*100)}%")
+                st.caption(f"Context match based on: {past_text[:100]}...")
+
+# At the VERY bottom of the file (outside the 'if' block)
+import gc
+gc.collect()
 
 
 
