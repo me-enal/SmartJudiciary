@@ -6,6 +6,19 @@ from engine.reader import get_text_from_pdf
 from engine.detective import find_legal_details, extract_timeline
 from engine.summarizer import make_summary
 import datetime
+import spacy
+import pdfplumber
+import gc
+@st.cache_resource
+def load_nlp_model():
+    # We use 'sm' because it's the lightest permanent solution
+    return spacy.load("en_core_web_sm")
+
+# 2. Call the function to get your 'nlp' object
+nlp = load_nlp_model()
+
+# --- Rest of your app code starts here ---
+st.title("Smart Judiciary AI")
 
 # 1. Page Configuration
 st.set_page_config(
@@ -104,4 +117,5 @@ else:
     st.write("3. Review the summary and download the final Case Brief for your records.")
     import gc
 gc.collect() # <--- This manually clears out unused memory
+
 
