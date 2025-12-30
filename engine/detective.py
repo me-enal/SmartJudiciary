@@ -3,55 +3,55 @@ import re
 def find_legal_details(text):
     details = {"Parties": [], "Laws": []}
     
-    # Focus on the first 3000 characters
-    header = text[:3000]
-    
-    # 1. CLEANING: Remove the dots and legal titles that confuse the AI
-    # This turns "MEENAL ... Appellant" into "MEENAL Appellant"
-    clean_header = re.sub(r'\.{2,}', ' ', header)
-    clean_header = ' '.join(clean_header.split())
+    # Split text into lines to analyze structure
+    lines = [line.strip() for line in text[:4000].split('\n') if line.strip()]
 
-    # 2. THE "DEEP SCAN" FOR NAMES
-    # This looks for a Name VERSUS Name pattern first
-    vs_pattern = r"([A-Z][A-Z\s]{3,})\s+(?:VERSUS|V/S|VS\.?)\s+([A-Z][A-Z\s]{3,})"
-    match_vs = re.search(vs_pattern, clean_header, re.IGNORECASE)
+    p1, p2 = "Not detected", "Not detected"
 
-    if match_vs:
-        p1, p2 = match_vs.group(1).strip(), match_vs.group(2).strip()
-    else:
-        # If no VS, look for names trapped before Petitioner/Respondent markers
-        # We capture everything BEFORE the word Petitioner that is in ALL CAPS
-        pet_pattern = r"\b([A-Z\s]{4,})\b(?=\s*[\(\[].*?(?:Petitioner|Appellant|Plaintiff))"
-        res_pattern = r"\b([A-Z\s]{4,})\b(?=\s*[\(\[].*?(?:Respondent|Defendant))"
+    # --- 1. VERTICAL SEARCH FOR PARTIES ---
+    for i, line in enumerate(lines):
+        # Look for the word 'Appellant' or 'Petitioner'
+        if re.search(r'\b(Appellant|Petitioner|Applicant|Plaintiff)\b', line, re.I):
+            # The name is usually 1 or 2 lines ABOVE this label
+            for j in range(i-1, max(-1, i-3), -1):
+                potential_name = lines[j].replace('.', '').strip()
+                if len(potential_name) > 3 and not re.search(r'(COURT|JUDICIAL|ADVOCATE|HONBLE)', potential_name, re.I):
+                    p1 = potential_name
+                    break
         
-        m_pet = re.search(pet_pattern, clean_header)
-        m_res = re.search(res_pattern, clean_header)
-        
-        p1 = m_pet.group(1).strip() if m_pet else "Not detected"
-        p2 = m_res.group(1).strip() if m_res else "Not detected"
+        # Look for the word 'Respondent' or 'Defendant'
+        if re.search(r'\b(Respondent|Defendant)\b', line, re.I):
+            # The name is usually 1 or 2 lines ABOVE this label
+            for k in range(i-1, max(-1, i-3), -1):
+                potential_name = lines[k].replace('.', '').strip()
+                if len(potential_name) > 3 and not re.search(r'(VERSUS|VS|V/S)', potential_name, re.I):
+                    p2 = potential_name
+                    break
 
-    # 3. FINAL CLEANUP: Remove "THE", "APPELLANT", etc. if they got caught
-    noise = ["THE ", "APPELLANT", "PETITIONER", "RESPONDENT", "VERSUS", "VS", "V/S"]
-    for word in noise:
-        p1 = re.sub(rf'\b{word}\b', '', p1, flags=re.IGNORECASE).strip()
-        p2 = re.sub(rf'\b{word}\b', '', p2, flags=re.IGNORECASE).strip()
+    # --- 2. CLEANUP NOISE ---
+    # Remove common prefix/suffix noise
+    noise_patterns = [r'^THE\s+', r'\.\.\.', r'\d+', r'\(.*?\)', r'MR\s+', r'MS\s+', r'SMT\s+']
+    for pattern in noise_patterns:
+        p1 = re.sub(pattern, '', p1, flags=re.I).strip()
+        p2 = re.sub(pattern, '', p2, flags=re.I).strip()
 
-    details["Parties"] = [p1, p2]
+    details["Parties"] = [p1.upper(), p2.upper()]
 
-    # 4. LAW DETECTION
+    # --- 3. LAW DETECTION (Stable) ---
     law_keywords = ["Section 125", "CrPC", "Maintenance", "Custody", "Hindu Marriage Act"]
     for law in law_keywords:
-        if re.search(r'\b' + re.escape(law) + r'\b', text, re.IGNORECASE):
+        if re.search(r'\b' + re.escape(law) + r'\b', text, re.I):
             details["Laws"].append(law)
             
     return details
 
 def extract_timeline(text):
-    # This regex handles dates like '14th October 2023' or '14.10.2023'
+    # Expanded to catch "October 14, 2023" specifically
     date_regex = r'(\d{1,2}(?:st|nd|rd|th)?[\s\.\-/]+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s,]*\d{2,4}|\d{1,2}[.\-/]\d{1,2}[.\-/]\d{2,4})'
-    matches = re.findall(date_regex, text, re.IGNORECASE)
+    matches = re.findall(date_regex, text, re.I)
     unique_dates = list(dict.fromkeys([m.strip() for m in matches]))
     return [f"Key Date: {d}" for d in unique_dates[:8]]
+
 
 
 
