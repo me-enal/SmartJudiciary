@@ -102,3 +102,6 @@ else:
     st.write("2. Wait for the AI to extract parties, dates, and laws.")
 
     st.write("3. Review the summary and download the final Case Brief for your records.")
+    import gc
+gc.collect() # <--- This manually clears out unused memory
+
