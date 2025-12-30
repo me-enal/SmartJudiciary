@@ -1,37 +1,43 @@
 import re
 
 def extract_timeline(text):
-    # 1. Improved Date Pattern
-    date_pattern = r'(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})|((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s.-]?\d{1,2}(?:st|nd|rd|th)?[\s,.-]?\d{4})|(\d{1,2}(?:st|nd|rd|th)?[\s.-]?(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s,.-]?\d{4})'
+    # 1. This pattern is much broader to catch PDF-style dates
+    # Matches: 12.05.2023, 12/05/23, May 12 2023, 12th August 2022, etc.
+    date_pattern = r'(\d{1,4}[.\-/]\d{1,2}[.\-/]\d{2,4})|((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s.,]*\d{1,2}(?:st|nd|rd|th)?[\s.,]+\d{4})|(\d{1,2}(?:st|nd|rd|th)?[\s.,]+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s.,]+\d{4})'
     
-    # 2. Find all dates in the text
-    matches = re.findall(date_pattern, text, re.IGNORECASE)
+    # Pre-process text to remove multiple spaces/newlines which break regex
+    clean_text = " ".join(text.split())
+    
+    # 2. Find all matches
+    matches = re.findall(date_pattern, clean_text, re.IGNORECASE)
     
     timeline = []
-    seen_sentences = set() # To avoid duplicate entries
+    seen_dates = set()
 
     for match in matches:
-        # Clean up the regex tuple into a single string
+        # Reconstruct the date string from the regex groups
         date_str = "".join(match).strip()
-        
-        # 3. Find the sentence containing this date
-        # This looks for the text between periods (.) surrounding the date
-        sentence_match = re.search(r'([^.!?]*' + re.escape(date_str) + r'[^.!?]*[.!?])', text)
-        
-        if sentence_match:
-            sentence = sentence_match.group(0).strip()
-            # Clean up newlines and extra spaces inside the sentence
-            clean_sentence = " ".join(sentence.split())
+        if not date_str or date_str in seen_dates:
+            continue
             
-            if clean_sentence not in seen_sentences and len(clean_sentence) > 10:
-                # 4. Format the output with an emoji
-                timeline.append(f"📅 **{date_str}**: {clean_sentence}")
-                seen_sentences.add(clean_sentence)
+        # 3. Grab the surrounding sentence (approx 150 characters)
+        # We look for the date and take 60 chars before and 90 chars after
+        start_idx = clean_text.find(date_str)
+        if start_idx != -1:
+            start = max(0, start_idx - 60)
+            end = min(len(clean_text), start_idx + 120)
+            context = clean_text[start:end].strip()
+            
+            # Add ellipses if we are cutting off text
+            formatted_context = f"...{context}..."
+            
+            timeline.append(f"📅 **{date_str}**: {formatted_context}")
+            seen_dates.add(date_str)
         
-        # 5. Limit to 8-10 events to keep the UI clean
         if len(timeline) >= 10:
             break
                 
     return timeline
+
 
 
