@@ -1,51 +1,52 @@
 import re
 
+
 def find_legal_details(text):
     """
-    Extracts Parties and Laws using a robust multi-pattern approach.
+    Advanced detection for Parties and Laws.
     """
     details = {
         "Parties": [],
         "Laws": []
     }
     
-    # --- 1. ENHANCED PARTY DETECTION ---
-    # We look for the "VS" block which usually appears in the first 2000 chars
-    head_text = text[:2000] 
+    # --- 1. ENHANCED PARTY DETECTION (Targeting formal Headers) ---
+    head_text = text[:3000] # Focus on the first few pages
     
-    # Pattern A: Standard [Name] VS [Name] (Handles multiple lines and ALL CAPS)
-    # The (?s) flag allows the dot . to match newlines
-    vs_pattern = r"(?i)(.+?)\s+(?:VERSUS|V/S|VS\.?)\s+(.+?)(?=\n\n|\s{2,}|Petitioner|Respondent|JUDGMENT|$)"
-    vs_match = re.search(vs_pattern, head_text, re.DOTALL)
+    # Pattern A: Look for Appellant vs Respondent style (Common in Delhi High Court)
+    # This captures: "NAME ... Appellant Versus NAME ... Respondent"
+    app_res_pattern = r"(?s)(.+?)\.\.\.\s*Appellant\s+(?:Versus|Vs\.?)\s+(.+?)\.\.\.\s*Respondent"
+    match_ar = re.search(app_res_pattern, head_text, re.IGNORECASE)
     
-    if vs_match:
-        p1 = vs_match.group(1).strip().split('\n')[-1] # Take the line closest to 'VS'
-        p2 = vs_match.group(2).strip().split('\n')[0]  # Take the line immediately after 'VS'
-        details["Parties"] = [p1.strip(), p2.strip()]
+    if match_ar:
+        details["Parties"] = [match_ar.group(1).strip().replace('\n', ' '), 
+                              match_ar.group(2).strip().replace('\n', ' ')]
     
-    # Pattern B: If Pattern A fails, look for 'Petitioner' and 'Respondent' labels
+    # Pattern B: Look for Title style (e.g., "MEENAL vs. RAJESH")
     if not details["Parties"]:
-        pet_match = re.search(r"(?i)(.+?)\s*\.{3,}\s*Petitioner", head_text)
-        res_match = re.search(r"(?i)(.+?)\s*\.{3,}\s*Respondent", head_text)
-        if pet_match and res_match:
-            details["Parties"] = [pet_match.group(1).strip(), res_match.group(1).strip()]
+        vs_pattern = r"([A-Z]{2,}(?:\s[A-Z]{2,})*)\s+(?:VERSUS|V/S|VS\.?)\s+([A-Z]{2,}(?:\s[A-Z]{2,})*)"
+        match_vs = re.search(vs_pattern, head_text)
+        if match_vs:
+            details["Parties"] = [match_vs.group(1).strip(), match_vs.group(2).strip()]
 
-    # --- 2. ENHANCED LAW DETECTION ---
-    # Expanded list for better coverage in Indian Family Law
+    # Pattern C: Fallback for "In the matter of: Name"
+    if not details["Parties"]:
+        matter_match = re.search(r"Matter of\s*:\s*([A-Z][a-z]+(?:\s[A-Z][a-z]+)*)", head_text)
+        if matter_match:
+            details["Parties"] = [matter_match.group(1).strip(), "Unknown"]
+
+    # --- 2. LAW DETECTION ---
     law_keywords = [
-        "Hindu Marriage Act", "Section 125", "CrPC", "IPC", 
-        "Domestic Violence Act", "Maintenance", "Custody", 
-        "Special Marriage Act", "Hindu Succession Act",
-        "Family Courts Act", "Indian Evidence Act"
+        "Section 125", "CrPC", "Maintenance", "Custody", 
+        "Hindu Marriage Act", "Domestic Violence Act", "IPC"
     ]
     
-    # Use word boundaries (\b) to avoid partial matches
     for law in law_keywords:
         if re.search(r'\b' + re.escape(law) + r'\b', text, re.IGNORECASE):
             details["Laws"].append(law)
             
-    # Clean up results (remove duplicates)
-    details["Laws"] = list(set(details["Laws"]))
+    # Clean up names (remove extra dots or 'and others')
+    details["Parties"] = [re.sub(r'\.+', '', p).strip() for p in details["Parties"]]
     
     return details
 
@@ -66,6 +67,7 @@ def extract_timeline(text):
         if len(timeline) > 5: break
             
     return timeline
+
 
 
 
