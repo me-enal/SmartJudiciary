@@ -14,7 +14,7 @@ import gc
 def load_nlp_model():
     # We use 'sm' because it's the lightest permanent solution
     return spacy.load("en_core_web_sm")
-    @st.cache_resource
+
 @st.cache_resource
 def load_bert_model():
     from sentence_transformers import SentenceTransformer  # <--- MUST BE INDENTED
@@ -150,6 +150,7 @@ else:
     import gc
 gc.collect() # <--- This manually clears out unused memory
 # ... previous code where you showed summary and chronology ...
+
 
 
 
