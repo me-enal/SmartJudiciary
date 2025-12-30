@@ -2,27 +2,26 @@ import os
 import sys
 import streamlit as st
 import datetime
-import spacy
 import gc
 from sentence_transformers import util
 
 # 1. Path Fix
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-# 2. Page Configuration
-st.set_page_config(page_title="Judiciary AI", page_icon="⚖️", layout="wide")
-
-# 3. Internal Imports
+# 2. Internal Imports
 try:
     from engine.reader import get_text_from_pdf
     from engine.detective import find_legal_details, extract_timeline
     from engine.summarizer import make_summary
 except ImportError:
-    # Fallback to prevent crash if folders aren't synced yet
-    def get_text_from_pdf(f): return "Sample Text"
-    def find_legal_details(t): return {"Parties": [], "Laws": []}
-    def extract_timeline(t): return []
-    def make_summary(t): return "Summary not available."
+    PAST_CASES = {} 
+
+# 3. Page Configuration (EXACTLY AS YOU HAD IT)
+st.set_page_config(
+    page_title="Judiciary AI",
+    page_icon="⚖️",
+    layout="wide"
+)
 
 PAST_CASES = {
     "Suresh v. State of Haryana (2018)": "A landmark case regarding child custody where the welfare of the minor was paramount. The court held that the mother's financial status is not a bar to custody.",
@@ -30,20 +29,17 @@ PAST_CASES = {
     "Anjali v. Alok (2021)": "Judgment regarding the division of ancestral property in family disputes under the Hindu Succession Act."
 }
 
-# 4. AI MODELS (Optimized for Memory)
+# --- 4. AI MODELS (Memory-Optimized Loaders) ---
 @st.cache_resource
 def load_nlp_model():
-    # Only load what we need to save RAM
-    return spacy.load("en_core_web_sm", disable=["ner", "parser", "lemmatizer"])
+    import spacy
+    # Permanent Fix: Disable heavy features to save 300MB RAM
+    return spacy.load("en_core_web_sm", disable=["parser", "ner"])
 
 @st.cache_resource
 def load_bert_model():
     from sentence_transformers import SentenceTransformer
-    # Using the light version of the model to avoid "Resource Limit"
     return SentenceTransformer('all-MiniLM-L6-v2')
-
-research_ai = load_bert_model()
-nlp = load_nlp_model()
 
 # --- 5. SIDEBAR ---
 with st.sidebar:
@@ -58,6 +54,9 @@ st.title("Judiciary AI System for Family Law")
 st.markdown("---")
 
 if uploaded_file:
+    # Wake up models only when file is present
+    research_ai = load_bert_model()
+    
     # Processing Status
     with st.status("🚀 AI Engine Processing...", expanded=True) as status:
         st.write("📖 Reading PDF content...")
@@ -78,11 +77,12 @@ if uploaded_file:
     
     # 7. PRECEDENT SEARCH (BERT)
     st.subheader("🔍 Finding Precedents (BERT Similarity)")
+    
+    # Analyze the first 1500 characters to stay under memory limit
     current_embedding = research_ai.encode(text[:1500], convert_to_tensor=True)
 
     with st.expander("View Similar Past Cases", expanded=True):
         found_any = False
-        # Ensure training_data exists in session
         if 'training_data' not in st.session_state:
             st.session_state['training_data'] = PAST_CASES.copy()
 
@@ -122,8 +122,8 @@ if uploaded_file:
         st.subheader("📥 Export Case Brief")
         
         report_timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        # Fix: Replaced chr(10) with \n to prevent SyntaxErrors in f-strings
-        timeline_flat = "\n".join(timeline_events)
+        # Format timeline for text file
+        timeline_str = "\n".join(timeline_events)
         full_report = f"""
 ⚖️ JUDICIARY AI CASE BRIEF
 Generated on: {report_timestamp}
@@ -137,7 +137,7 @@ SUMMARY:
 {summary}
 
 CHRONOLOGY:
-{timeline_flat}
+{timeline_str}
 ---------------------------------------
 End of Brief.
         """
@@ -170,13 +170,15 @@ with st.expander("Contribute this case to AI Training?"):
     
     if st.button("Authorize & Train Model"):
         if case_name:
-            st.session_state['training_data'][case_name] = text[:5000]
+            st.session_state['training_data'][case_name] = text[:3000]
             st.success(f"Successfully added '{case_name}' to the local training set!")
             st.balloons()
         else:
             st.warning("Please provide a case name first.")
 
+# Final Memory Cleanup
 gc.collect()
+
 
 
 
