@@ -3,55 +3,57 @@ import re
 def find_legal_details(text):
     details = {"Parties": ["Not detected", "Not detected"], "Laws": []}
     
-    # 1. Get the very top of the document
-    header = text[:2000]
+    # 1. Get the first 3000 characters and split into lines
+    lines = [line.strip() for line in text[:3000].split('\n') if len(line.strip()) > 1]
     
-    # 2. Look for the 'VERSUS' line
-    # We split the text into lines to find what is above and below VERSUS
-    lines = [l.strip() for l in header.split('\n') if len(l.strip()) > 2]
-    
-    vs_index = -1
+    # 2. FIND THE PARTIES
+    # We look for the line that has "VERSUS" or "VS"
+    vs_idx = -1
     for i, line in enumerate(lines):
-        if "VERSUS" in line.upper() or "V/S" in line.upper() or " VS " in line.upper():
-            vs_index = i
+        if re.search(r'\b(VERSUS|V/S|VS)\b', line, re.I):
+            vs_idx = i
             break
             
-    if vs_index != -1:
-        # The Petitioner is usually the first non-empty line above VERSUS
-        # The Respondent is usually the first non-empty line below VERSUS
-        if vs_index > 0:
-            details["Parties"][0] = lines[vs_index - 1].split('...')[0].strip()
-        if vs_index < len(lines) - 1:
-            details["Parties"][1] = lines[vs_index + 1].split('...')[0].strip()
-    else:
-        # Fallback: Just look for the first two lines that are in ALL CAPS
-        caps_lines = [l for l in lines if l.isupper() and len(l.split()) < 6][:2]
+    if vs_idx != -1:
+        # Petitioner is the line directly above VERSUS
+        if vs_idx > 0:
+            details["Parties"][0] = lines[vs_idx - 1].replace('...', '').strip()
+        # Respondent is the line directly below VERSUS
+        if vs_idx < len(lines) - 1:
+            details["Parties"][1] = lines[vs_idx + 1].replace('...', '').strip()
+    
+    # Fallback: If no VS is found, take the first two lines that are in CAPITAL LETTERS
+    if details["Parties"][0] == "Not detected":
+        caps_lines = [l for l in lines if l.isupper() and len(l.split()) < 6]
         if len(caps_lines) >= 2:
-            details["Parties"] = caps_lines
+            details["Parties"] = caps_lines[:2]
 
-    # 3. Simple Law Detection
-    keywords = ["Section 125", "Maintenance", "Custody", "CrPC", "HMA"]
-    for k in keywords:
-        if k.lower() in text.lower():
-            details["Laws"].append(k)
+    # 3. FIND THE LAWS
+    law_keywords = ["Section 125", "CrPC", "Maintenance", "Hindu Marriage Act", "HMA", "Custody", "Domestic Violence"]
+    for law in law_keywords:
+        if law.lower() in text.lower():
+            details["Laws"].append(law)
             
     return details
 
 def extract_timeline(text):
-    # This finds any date like 10.12.2023 or 10/12/2023 or 10-12-2023
-    # It also finds dates like 10th October 2023
-    date_pattern = r'(\d{1,2}(?:st|nd|rd|th)?[\s\.\-/]+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s,]*\d{2,4}|\d{1,2}[.\-/]\d{1,2}[.\-/]\d{2,4})'
-    matches = re.findall(date_pattern, text, re.IGNORECASE)
+    # This regex is a 'Vacuum' - it sucks up any date it finds
+    # Matches: 12.10.2023, 12/10/2023, 12th October 2023, October 12, 2023
+    date_regex = r'(\d{1,2}(?:st|nd|rd|th)?[\s\.\-/]+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s,]*\d{2,4}|\d{1,2}[.\-/]\d{1,2}[.\-/]\d{2,4})'
     
+    found_dates = re.findall(date_regex, text, re.I)
+    
+    # Keep only unique dates to keep it clean
     unique_dates = []
-    for m in matches:
-        if m not in unique_dates:
-            unique_dates.append(m)
+    for d in found_dates:
+        if d not in unique_dates:
+            unique_dates.append(d)
             
     if not unique_dates:
-        return ["No dates found in the first few pages"]
+        return ["No dates found in header"]
         
-    return [f"Date: {d}" for d in unique_dates[:5]]
+    return [f"Key Date: {d}" for d in unique_dates[:6]]
+
 
 
 
