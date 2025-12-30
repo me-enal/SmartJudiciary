@@ -25,7 +25,7 @@ from sentence_transformers import util
 
 # --- STEP 4: APP LOGIC ---
 st.set_page_config(page_title="Smart Judiciary AI", layout="wide")
-)
+
 
 
 # ... rest of your UI code (File uploader, etc) ...
@@ -192,6 +192,7 @@ with st.expander("Contribute this case to AI Training?"):
 
 # Memory Cleanup
 gc.collect()
+
 
 
 
