@@ -1,54 +1,51 @@
 import re
 
 def find_legal_details(text):
-    # Safety check: if text is empty, the PDF is a scan/image
-    if not text or len(text.strip()) < 20:
-        return {"Parties": ["PDF MIGHT BE A SCAN", "CANNOT READ IMAGE"], "Laws": ["No text detected"]}
-
     details = {"Parties": ["Not detected", "Not detected"], "Laws": []}
     
-    # 1. Split into lines and remove empty ones
-    lines = [l.strip() for l in text[:3000].split('\n') if len(l.strip()) > 2]
+    # 1. Focus on the header
+    header = text[:3000]
+    lines = [l.strip() for l in header.split('\n') if len(l.strip()) > 2]
 
-    # 2. THE HUNTER: Look for keywords like Petitioner/Respondent
-    p1_found = False
-    p2_found = False
+    p1, p2 = "Not detected", "Not detected"
 
+    # 2. THE PRECISION SCANNER
     for i, line in enumerate(lines):
-        # Look for Petitioner/Appellant
-        if not p1_found and any(word in line.upper() for word in ["PETITIONER", "APPELLANT", "PLAINTIFF"]):
-            # Grab this line, but clean off the "..."
-            details["Parties"][0] = line.split('...')[0].strip()
-            p1_found = True
+        # Scan for Petitioner/Appellant
+        if any(word in line.upper() for word in ["APPELLANT", "PETITIONER", "PLAINTIFF"]):
+            # CROP: Take the line, but stop if you see these words
+            clean = re.split(r'\(|alleges|was|forced|challenged|filed|is\b', line, flags=re.I)[0]
+            p1 = clean.replace('the', '').replace('The', '').strip()
         
-        # Look for Respondent/Defendant
-        if not p2_found and any(word in line.upper() for word in ["RESPONDENT", "DEFENDANT"]):
-            details["Parties"][1] = line.split('...')[0].strip()
-            p2_found = True
+        # Scan for Respondent/Defendant
+        if any(word in line.upper() for word in ["RESPONDENT", "DEFENDANT"]):
+            # CROP: Stop before the argument starts
+            clean = re.split(r'\(|challenged|arguing|denies|states|is\b', line, flags=re.I)[0]
+            p2 = clean.replace('the', '').replace('The', '').strip()
 
-    # 3. THE SAFETY NET: If keywords failed, just take the top lines
-    # Usually, Line 4 is the Petitioner and Line 10 is the Respondent
-    if not p1_found and len(lines) > 4:
-        details["Parties"][0] = lines[3]
-    if not p2_found and len(lines) > 8:
-        details["Parties"][1] = lines[8]
+    # 3. CLEAN UP BRACKETS AND TITLES
+    def final_fix(name):
+        name = re.sub(r'[^a-zA-Z\s]', '', name) # Remove numbers/dots
+        return name.strip().upper()
+
+    details["Parties"] = [final_fix(p1), final_fix(p2)]
 
     # 4. LAW DETECTION
-    for law in ["Section 125", "Maintenance", "Hindu Marriage Act", "Custody", "CrPC", "HMA"]:
-        if law.lower() in text.lower():
+    for law in ["Section 125", "Maintenance", "Hindu Marriage Act", "Custody", "CrPC"]:
+        if re.search(r'\b' + re.escape(law) + r'\b', text, re.I):
             details["Laws"].append(law)
             
     return details
 
 def extract_timeline(text):
-    # Pulls any sequence that looks like a date
-    date_regex = r'(\d{1,2}[.\-/]\d{1,2}[.\-/]\d{2,4})'
-    found = re.findall(date_regex, text)
-    # Also look for years
-    years = re.findall(r'\b(19|20)\d{2}\b', text[:2000])
+    # Improved Date Finder: Catches "September 15, 2020" and "15.09.2020"
+    date_regex = r'(\d{1,2}(?:st|nd|rd|th)?[\s\.\-/]+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s,]*\d{2,4}|\d{1,2}[.\-/]\d{1,2}[.\-/]\d{2,4}|(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}[\s,]+\d{4})'
     
-    combined = list(dict.fromkeys(found + years))
-    return [f"Date/Year found: {d}" for d in combined[:6]] if combined else ["No dates detected"]
+    found = re.findall(date_regex, text, re.I)
+    unique_dates = list(dict.fromkeys([d.strip() for d in found]))
+    
+    return [f"Key Date: {d}" for d in unique_dates[:8]] if unique_dates else ["No specific dates found"]
+
 
 
 
