@@ -3,56 +3,59 @@ import re
 def find_legal_details(text):
     details = {"Parties": ["Not detected", "Not detected"], "Laws": []}
     
-    # 1. Get the first 20 lines of the document
-    lines = [l.strip() for l in text[:2000].split('\n') if len(l.strip()) > 3]
+    # 1. Check if the PDF is actually readable
+    if not text or len(text.strip()) < 10:
+        return {"Parties": ["PDF UNREADABLE", "POSSIBLY A SCAN"], "Laws": ["Try a different PDF"]}
+
+    # 2. Get the first 15 lines of text
+    lines = [l.strip() for l in text[:2500].split('\n') if len(l.strip()) > 2]
     
-    # 2. THE 'VERSUS' ANCHOR SEARCH
-    vs_idx = -1
-    for i, line in enumerate(lines):
-        if re.search(r'\b(VERSUS|V/S|VS)\b', line, re.I):
-            vs_idx = i
-            break
+    # 3. THE VACUUM: Collect anything that looks like a name
+    # We ignore lines with these "Bad Words"
+    bad_words = ["COURT", "JUDGE", "DATE", "ORDER", "JUDGMENT", "ADVOCATE", "STREET", "ROAD", "VERSUS", "VS", "V/S"]
+    
+    candidates = []
+    for line in lines:
+        # Priority: If it's in brackets (Anjali Sharma), it's definitely a name
+        bracket_match = re.search(r'\(([^)]+)\)', line)
+        if bracket_match:
+            name = bracket_match.group(1)
+            candidates.append(name.strip().upper())
+            continue
             
-    if vs_idx != -1:
-        # Petitioner is 1-2 lines above VERSUS
-        # Respondent is 1-2 lines below VERSUS
-        p1_raw = lines[vs_idx - 1] if vs_idx > 0 else "Not detected"
-        p2_raw = lines[vs_idx + 1] if vs_idx < len(lines)-1 else "Not detected"
-        
-        def clean_name(name):
-            # If name is in brackets (Anjali Sharma), take that
-            match = re.search(r'\(([^)]+)\)', name)
-            if match:
-                name = match.group(1)
-            # Remove titles and noise
-            name = re.sub(r'\b(SMT|SHRI|MR|MS|MRS|APPELLANT|RESPONDENT|PETITIONER|THE|AND|VERSUS|VS)\b', '', name, flags=re.I)
-            name = re.sub(r'[^a-zA-Z\s]', '', name)
-            return name.strip().upper()
+        # Fallback: If the line is short (1-4 words) and not in the bad_words list
+        if not any(word in line.upper() for word in bad_words) and len(line.split()) < 5:
+            # Remove legal titles
+            clean = re.sub(r'\b(SMT|SHRI|MR|MS|MRS|THE|APPELLANT|RESPONDENT|PETITIONER)\b', '', line, flags=re.I)
+            clean = re.sub(r'[^a-zA-Z\s]', '', clean).strip()
+            if len(clean) > 2:
+                candidates.append(clean.upper())
 
-        details["Parties"] = [clean_name(p1_raw), clean_name(p2_raw)]
+    # 4. Pick the first two unique names found
+    final_list = []
+    for c in candidates:
+        if c not in final_list:
+            final_list.append(c)
+            
+    if len(final_list) >= 2:
+        details["Parties"] = [final_list[0], final_list[1]]
+    elif len(final_list) == 1:
+        details["Parties"] = [final_list[0], "Check Respondent Manually"]
 
-    # 3. EMERGENCY FALLBACK
-    # If VS wasn't found, just grab the first two lines that look like names
-    if details["Parties"][0] == "" or details["Parties"][0] == "NOT DETECTED":
-        # Filter out lines that are clearly just addresses or dates
-        potential_names = [l for l in lines if not any(word in l.upper() for word in ["COURT", "JUDGE", "DATED", "ADVOCATE", "STREET", "ROAD", "INCOME"])][:2]
-        if len(potential_names) >= 2:
-            details["Parties"] = [potential_names[0].upper(), potential_names[1].upper()]
-
-    # 4. LAW DETECTION
-    laws = ["Section 125", "Maintenance", "Hindu Marriage Act", "Custody", "CrPC"]
-    for law in laws:
-        if re.search(r'\b' + re.escape(law) + r'\b', text, re.I):
+    # 5. LAW DETECTION
+    law_map = ["Section 125", "Maintenance", "Hindu Marriage Act", "Custody", "CrPC", "HMA"]
+    for law in law_map:
+        if law.lower() in text.lower():
             details["Laws"].append(law)
             
     return details
 
 def extract_timeline(text):
-    # Powerful date search
+    # This finds any date like February 14, 2023 or 14/02/2023
     date_regex = r'((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2}[\s,]+\d{4}|\d{1,2}[.\-/]\d{1,2}[.\-/]\d{2,4})'
     found = re.findall(date_regex, text, re.I)
-    unique_dates = list(dict.fromkeys([d.strip() for d in found]))
-    return [f"Key Date: {d}" for d in unique_dates[:8]] if unique_dates else ["No dates found"]
+    unique = list(dict.fromkeys([d.strip() for d in found]))
+    return [f"Key Date: {d}" for d in unique[:6]] if unique else ["No dates found"]
 
 
 
