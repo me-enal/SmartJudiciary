@@ -1,56 +1,50 @@
 import re
 
 def find_legal_details(text):
-    # Safety check: Is the PDF even readable?
+    # 1. Check if there is ANY text at all
     if not text or len(text.strip()) < 10:
-        return {"Parties": ["PDF UNREADABLE", "POSSIBLY AN IMAGE SCAN"], "Laws": ["No text detected"]}
+        return {"Parties": ["PDF IS A SCAN/IMAGE", "CANNOT READ TEXT"], "Laws": ["Use a searchable PDF"]}
 
-    details = {"Parties": [], "Laws": []}
+    details = {"Parties": ["Not detected", "Not detected"], "Laws": []}
     
-    # 1. Get the first 15 lines that are not empty
-    lines = [l.strip() for l in text[:3000].split('\n') if len(l.strip()) > 3]
+    # 2. Get the first 10 lines that aren't empty
+    lines = [l.strip() for l in text[:2000].split('\n') if len(l.strip()) > 2]
     
-    # 2. BRUTE FORCE: Just grab the first few lines that look like names
-    # We skip lines that are clearly just "High Court" or "Judgment"
-    ignore_list = ["COURT", "JUDGE", "BENCH", "ORDER", "JUDGMENT", "DATED", "ADVOCATE", "NO", "YEAR"]
+    # 3. ABSOLUTE BRUTE FORCE
+    # We ignore headers and just take the first two 'clean' lines
+    noise = ["COURT", "JUDGE", "BENCH", "ORDER", "JUDGMENT", "DATED", "NO.", "YEAR", "VERSUS", "VS"]
     
-    potential = []
+    candidates = []
     for line in lines:
-        # If the line contains a name in brackets (Anjali Sharma), prioritize it
+        # If the line has brackets like (Anjali Sharma), it's our winner
         bracket_match = re.search(r'\(([^)]+)\)', line)
         if bracket_match:
-            potential.append(bracket_match.group(1).upper())
-        
-        # Otherwise, if it's a short line and not 'noise', add it
-        elif not any(word in line.upper() for word in ignore_list) and len(line.split()) < 6:
-            # Clean off the legal titles like Smt/Shri
+            candidates.append(bracket_match.group(1).upper())
+            continue
+            
+        # Otherwise, take short lines that aren't noise
+        if not any(word in line.upper() for word in noise) and len(line.split()) < 6:
             clean = re.sub(r'\b(SMT|SHRI|MR|MS|MRS|THE|APPELLANT|RESPONDENT|PETITIONER)\b', '', line, flags=re.I)
             clean = re.sub(r'[^a-zA-Z\s]', '', clean).strip()
             if len(clean) > 2:
-                potential.append(clean.upper())
+                candidates.append(clean.upper())
 
-    # 3. Take the first two unique items found
-    unique_candidates = []
-    for p in potential:
-        if p not in unique_candidates:
-            unique_candidates.append(p)
-
-    if len(unique_candidates) >= 2:
-        details["Parties"] = [unique_candidates[0], unique_candidates[1]]
-    elif len(unique_candidates) == 1:
-        details["Parties"] = [unique_candidates[0], "RESPONDENT NOT FOUND"]
+    # 4. Fill the parties list
+    if len(candidates) >= 2:
+        details["Parties"] = [candidates[0], candidates[1]]
+    elif len(candidates) == 1:
+        details["Parties"] = [candidates[0], "Check Respondent Manually"]
     else:
-        # ABSOLUTE FALLBACK: Just give the first two lines of the PDF
+        # LAST RESORT: Just show the first two lines of the file no matter what
         details["Parties"] = [lines[0][:30] if len(lines) > 0 else "Empty", 
                               lines[1][:30] if len(lines) > 1 else "Empty"]
 
-    # 4. LAW DETECTION
+    # 5. LAW DETECTION
     for law in ["Section 125", "Maintenance", "Hindu Marriage Act", "CrPC", "HMA"]:
         if law.lower() in text.lower():
             details["Laws"].append(law)
             
     return details
-
 
 def extract_timeline(text):
     # This finds any date like February 14, 2023 or 14/02/2023
@@ -58,6 +52,7 @@ def extract_timeline(text):
     found = re.findall(date_regex, text, re.I)
     unique = list(dict.fromkeys([d.strip() for d in found]))
     return [f"Key Date: {d}" for d in unique[:6]] if unique else ["No dates found"]
+
 
 
 
