@@ -3,45 +3,43 @@ import re
 def find_legal_details(text):
     details = {"Parties": ["Not detected", "Not detected"], "Laws": []}
     
-    # 1. Focus only on the very top of the document (The Header)
-    # This prevents the code from 'wandering' into the 'Architect' section
-    header = text[:1500]
+    # 1. Get the first 20 lines of the document
+    lines = [l.strip() for l in text[:2000].split('\n') if len(l.strip()) > 3]
     
-    # 2. Look for the VERSUS anchor
-    # We look for Petitioner [VERSUS] Respondent
-    vs_match = re.search(r"(.*?)\s+(?:VERSUS|V/S|VS\.?)\s+(.*)", header, re.IGNORECASE)
-
-    if vs_match:
-        # Get the text immediately before and after VERSUS
-        raw_p1 = vs_match.group(1).strip()
-        raw_p2 = vs_match.group(2).strip()
-
-        # 3. THE NAME EXTRACTOR
-        def isolate_name(raw_text, side="left"):
-            # If there's a name in brackets like (Anjali Sharma), take it
-            brackets = re.findall(r'\(([^)]+)\)', raw_text)
-            if brackets:
-                return brackets[-1] # Take the last bracketed text
+    # 2. THE 'VERSUS' ANCHOR SEARCH
+    vs_idx = -1
+    for i, line in enumerate(lines):
+        if re.search(r'\b(VERSUS|V/S|VS)\b', line, re.I):
+            vs_idx = i
+            break
             
-            # If no brackets, take the last 3 words (if left side) or first 3 (if right side)
-            words = raw_text.split()
-            if side == "left":
-                return " ".join(words[-3:]) if words else "Not detected"
-            else:
-                return " ".join(words[:3]) if words else "Not detected"
-
-        p1 = isolate_name(raw_p1, "left")
-        p2 = isolate_name(raw_p2, "right")
-
-        # 4. FINAL CLEANUP (Remove 'Appellant', 'Respondent', and 'Architect' noise)
-        def clean(name):
-            name = re.sub(r'\b(THE|APPELLANT|RESPONDENT|PETITIONER|SMT|SHRI|MR|MS|MRS|ARCHITECT|COURT|FINDS|HOWEVER)\b', '', name, flags=re.I)
+    if vs_idx != -1:
+        # Petitioner is 1-2 lines above VERSUS
+        # Respondent is 1-2 lines below VERSUS
+        p1_raw = lines[vs_idx - 1] if vs_idx > 0 else "Not detected"
+        p2_raw = lines[vs_idx + 1] if vs_idx < len(lines)-1 else "Not detected"
+        
+        def clean_name(name):
+            # If name is in brackets (Anjali Sharma), take that
+            match = re.search(r'\(([^)]+)\)', name)
+            if match:
+                name = match.group(1)
+            # Remove titles and noise
+            name = re.sub(r'\b(SMT|SHRI|MR|MS|MRS|APPELLANT|RESPONDENT|PETITIONER|THE|AND|VERSUS|VS)\b', '', name, flags=re.I)
             name = re.sub(r'[^a-zA-Z\s]', '', name)
             return name.strip().upper()
 
-        details["Parties"] = [clean(p1), clean(p2)]
+        details["Parties"] = [clean_name(p1_raw), clean_name(p2_raw)]
 
-    # 5. LAW DETECTION
+    # 3. EMERGENCY FALLBACK
+    # If VS wasn't found, just grab the first two lines that look like names
+    if details["Parties"][0] == "" or details["Parties"][0] == "NOT DETECTED":
+        # Filter out lines that are clearly just addresses or dates
+        potential_names = [l for l in lines if not any(word in l.upper() for word in ["COURT", "JUDGE", "DATED", "ADVOCATE", "STREET", "ROAD", "INCOME"])][:2]
+        if len(potential_names) >= 2:
+            details["Parties"] = [potential_names[0].upper(), potential_names[1].upper()]
+
+    # 4. LAW DETECTION
     laws = ["Section 125", "Maintenance", "Hindu Marriage Act", "Custody", "CrPC"]
     for law in laws:
         if re.search(r'\b' + re.escape(law) + r'\b', text, re.I):
@@ -49,21 +47,16 @@ def find_legal_details(text):
             
     return details
 
-
-
 def extract_timeline(text):
-    # This pattern specifically looks for Month Day, Year (September 15, 2020)
-    # and DD.MM.YYYY
-    date_pattern = r'((?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}[\s,]+\d{4}|\d{1,2}[.\-/]\d{1,2}[.\-/]\d{2,4})'
-    
-    found = re.findall(date_pattern, text, re.I)
-    # Clean duplicates
-    unique_dates = []
-    for d in found:
-        if d not in unique_dates:
-            unique_dates.append(d)
-            
-    return [f"Event: {d}" for d in unique_dates[:8]] if unique_dates else ["No specific dates found"]
+    # Powerful date search
+    date_regex = r'((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2}[\s,]+\d{4}|\d{1,2}[.\-/]\d{1,2}[.\-/]\d{2,4})'
+    found = re.findall(date_regex, text, re.I)
+    unique_dates = list(dict.fromkeys([d.strip() for d in found]))
+    return [f"Key Date: {d}" for d in unique_dates[:8]] if unique_dates else ["No dates found"]
+
+
+
+
 
 
 
