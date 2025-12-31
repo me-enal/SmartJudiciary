@@ -2,35 +2,37 @@ import re
 
 def find_legal_details(text):
     details = {"Parties": ["Not detected", "Not detected"], "Laws": []}
-    
-    # 1. Focus on the header
     header = text[:3000]
     lines = [l.strip() for l in header.split('\n') if len(l.strip()) > 2]
 
     p1, p2 = "Not detected", "Not detected"
 
-    # 2. THE PRECISION SCANNER
-    for i, line in enumerate(lines):
-        # Scan for Petitioner/Appellant
-        if any(word in line.upper() for word in ["APPELLANT", "PETITIONER", "PLAINTIFF"]):
-            # CROP: Take the line, but stop if you see these words
-            clean = re.split(r'\(|alleges|was|forced|challenged|filed|is\b', line, flags=re.I)[0]
-            p1 = clean.replace('the', '').replace('The', '').strip()
+    for line in lines:
+        # 1. FIND NAME IN BRACKETS (e.g., "the appellant (Anjali Sharma)")
+        bracket_match = re.search(r'\(([^)]+)\)', line)
         
-        # Scan for Respondent/Defendant
-        if any(word in line.upper() for word in ["RESPONDENT", "DEFENDANT"]):
-            # CROP: Stop before the argument starts
-            clean = re.split(r'\(|challenged|arguing|denies|states|is\b', line, flags=re.I)[0]
-            p2 = clean.replace('the', '').replace('The', '').strip()
+        if "APPELLANT" in line.upper() or "PETITIONER" in line.upper():
+            if bracket_match:
+                p1 = bracket_match.group(1)
+            else:
+                # If no brackets, take words before "alleges" or "was"
+                p1 = re.split(r'\balleges\b|\bwas\b|\bis\b|\bfiled\b', line, flags=re.I)[0]
+                p1 = re.sub(r'\b(the|appellant|petitioner)\b', '', p1, flags=re.I).strip()
 
-    # 3. CLEAN UP BRACKETS AND TITLES
-    def final_fix(name):
-        name = re.sub(r'[^a-zA-Z\s]', '', name) # Remove numbers/dots
+        if "RESPONDENT" in line.upper() or "DEFENDANT" in line.upper():
+            if "challenged" in line.lower() or "arguing" in line.lower():
+                # Take words before "challenged"
+                p2 = re.split(r'\bchallenged\b|\barguing\b|\bis\b|\bdenies\b', line, flags=re.I)[0]
+                p2 = re.sub(r'\b(the|respondent|defendant)\b', '', p2, flags=re.I).strip()
+
+    # Final Clean: Remove numbers/years from names
+    def clean_name(name):
+        name = re.sub(r'[^a-zA-Z\s]', '', name)
         return name.strip().upper()
 
-    details["Parties"] = [final_fix(p1), final_fix(p2)]
+    details["Parties"] = [clean_name(p1), clean_name(p2)]
 
-    # 4. LAW DETECTION
+    # 2. LAW DETECTION
     for law in ["Section 125", "Maintenance", "Hindu Marriage Act", "Custody", "CrPC"]:
         if re.search(r'\b' + re.escape(law) + r'\b', text, re.I):
             details["Laws"].append(law)
@@ -38,13 +40,19 @@ def find_legal_details(text):
     return details
 
 def extract_timeline(text):
-    # Improved Date Finder: Catches "September 15, 2020" and "15.09.2020"
-    date_regex = r'(\d{1,2}(?:st|nd|rd|th)?[\s\.\-/]+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s,]*\d{2,4}|\d{1,2}[.\-/]\d{1,2}[.\-/]\d{2,4}|(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}[\s,]+\d{4})'
+    # This pattern specifically looks for Month Day, Year (September 15, 2020)
+    # and DD.MM.YYYY
+    date_pattern = r'((?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}[\s,]+\d{4}|\d{1,2}[.\-/]\d{1,2}[.\-/]\d{2,4})'
     
-    found = re.findall(date_regex, text, re.I)
-    unique_dates = list(dict.fromkeys([d.strip() for d in found]))
-    
-    return [f"Key Date: {d}" for d in unique_dates[:8]] if unique_dates else ["No specific dates found"]
+    found = re.findall(date_pattern, text, re.I)
+    # Clean duplicates
+    unique_dates = []
+    for d in found:
+        if d not in unique_dates:
+            unique_dates.append(d)
+            
+    return [f"Event: {d}" for d in unique_dates[:8]] if unique_dates else ["No specific dates found"]
+
 
 
 
