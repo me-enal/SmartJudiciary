@@ -1,13 +1,17 @@
 import re
 
+
 def find_legal_details(text):
     if not text or len(text.strip()) < 10:
-        return {"Parties": ["PDF UNREADABLE", "CHECK IF SCAN"], "Laws": []}
+        return {
+            "Parties": ["PDF UNREADABLE", "CHECK IF SCAN"],
+            "Laws": []
+        }
 
     lines = [l.strip() for l in text[:4000].split('\n') if len(l.strip()) > 3]
-
     found = []
 
+    # Detect parties using VS / VERSUS
     vs_pattern = re.compile(
         r'([A-Z][A-Za-z\s.&]+?)\s+(?:VS\.?|V\.?|VERSUS)\s+([A-Z][A-Za-z\s.&]+)',
         re.I
@@ -16,11 +20,11 @@ def find_legal_details(text):
     for line in lines:
         match = vs_pattern.search(line)
         if match:
-            p1 = match.group(1).strip().upper()
-            p2 = match.group(2).strip().upper()
-            found.extend([p1, p2])
-            break  
-            
+            found.append(match.group(1).strip().upper())
+            found.append(match.group(2).strip().upper())
+            break
+
+    # Fallback: names in brackets
     if len(found) < 2:
         for line in lines:
             match = re.search(r'\(([^)]+)\)', line)
@@ -31,12 +35,13 @@ def find_legal_details(text):
                     if name not in found:
                         found.append(name)
 
+    # Final fallback
     if len(found) < 2:
         noise = ["COURT", "JUDGE", "ORDER", "JUDGMENT", "DATED"]
         for line in lines:
-            line_up = line.upper()
-            if not any(word in line_up for word in noise):
-                clean = re.sub(r'[^A-Za-z\s]', '', line_up).strip()
+            up = line.upper()
+            if not any(n in up for n in noise):
+                clean = re.sub(r'[^A-Z\s]', '', up).strip()
                 if 2 <= len(clean.split()) <= 4 and clean not in found:
                     found.append(clean)
 
@@ -53,10 +58,22 @@ def find_legal_details(text):
 
 
 def extract_timeline(text):
-    date_regex = r'((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2}[\s,]+\d{4}|\d{1,2}[.\-/]\d{1,2}[.\-/]\d{2,4})'
+    date_regex = (
+        r'((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)'
+        r'[a-z]*\s+\d{1,2}[\s,]+\d{4}'
+        r'|\d{1,2}[.\-/]\d{1,2}[.\-/]\d{2,4})'
+    )
+
     found = re.findall(date_regex, text, re.I)
     unique = list(dict.fromkeys([d.strip() for d in found]))
-    re
+
+    if not unique:
+        return ["No dates found"]
+
+    return [f"Key Date: {d}" for d in unique[:6]]
+
+    
+
 
 
 
