@@ -5,6 +5,7 @@ def find_legal_details(text):
         return {"Parties": ["Not detected", "Not detected"], "Laws": []}
 
     details = {"Parties": ["Not detected", "Not detected"], "Laws": []}
+    # Look at the first 3000 characters for names
     lines = [l.strip() for l in text[:3000].split('\n') if len(l.strip()) > 2]
 
     p1, p2 = "Not detected", "Not detected"
@@ -14,6 +15,7 @@ def find_legal_details(text):
         
         # 1. Look for Petitioner/Appellant
         if ("APPELLANT" in line_up or "PETITIONER" in line_up) and p1 == "Not detected":
+            # Clean only the legal labels
             clean = re.sub(r'\b(APPELLANT|PETITIONER|THE|SMT|SHRI|MR|MS|MRS)\b', '', line, flags=re.I)
             p1 = re.sub(r'[^a-zA-Z\s]', '', clean).strip().upper()
             continue 
@@ -41,13 +43,14 @@ def find_legal_details(text):
     return details
 
 def extract_timeline(text):
-    # This function is needed because your app.py tries to import it on line 14
+    # This function is needed for the import in app.py line 14
     date_regex = r'(\d{1,2}[.\-/]\d{1,2}[.\-/]\d{2,4}|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2}[\s,]+\d{4})'
     found = re.findall(date_regex, text, re.I)
     unique = list(dict.fromkeys(found))
     return [f"Date: {d}" for d in unique[:5]] if unique else ["No dates found"]
 
     
+
 
 
 
