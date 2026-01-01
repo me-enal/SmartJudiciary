@@ -46,9 +46,10 @@ def extract_timeline(text):
     date_regex = r'((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2}[\s,]+\d{4}|\d{1,2}[.\-/]\d{1,2}[.\-/]\d{2,4})'
     found = re.findall(date_regex, text, re.I)
     unique = list(dict.fromkeys([d.strip() for d in found]))
-    return [f"Key Date: {d}" for d in unique[:6]] if unique else ["No dates found"] parties name not detected , correct the code
+    return [f"Key Date: {d}" for d in unique[:6]] if unique else ["No dates found"] 
 
     
+
 
 
 
